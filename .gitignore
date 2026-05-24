@@ -1,0 +1,14 @@
+# Local Claude Code configuration
+.claude/
+
+# Source data (not published)
+*.xlsx
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>108 Divya Desams — Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #1a1208;
+    color: #f0e6c8;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: linear-gradient(135deg, #4a2500 0%, #7a3d00 50%, #4a2500 100%);
+    border-bottom: 2px solid #c8860a;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 1.4rem; color: #ffd966; letter-spacing: 1px; text-shadow: 0 1px 3px #000; }
+  header span { font-size: 0.85rem; color: #c8a96e; }
+
+  .app { display: flex; flex: 1; overflow: hidden; width: 100%; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 300px;
+    background: #231a08;
+    border-right: 1px solid #5a3d10;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  #search-box { padding: 10px; border-bottom: 1px solid #5a3d10; flex-shrink: 0; }
+  #search-box input {
+    width: 100%; padding: 7px 10px;
+    background: #312508; border: 1px solid #7a5520; border-radius: 6px;
+    color: #f0e6c8; font-size: 0.85rem; outline: none;
+  }
+  #search-box input:focus { border-color: #c8860a; }
+  #search-box input::placeholder { color: #7a6040; }
+  #state-filter { padding: 8px 10px; border-bottom: 1px solid #5a3d10; display: flex; flex-wrap: wrap; gap: 5px; flex-shrink: 0; }
+  .filter-btn { font-size: 0.72rem; padding: 3px 8px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .filter-btn.active { opacity: 1; font-weight: bold; }
+  .filter-btn:not(.active) { opacity: 0.45; }
+  #temple-list { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #5a3d10 #231a08; }
+  .temple-item { padding: 8px 12px; border-bottom: 1px solid #2e2008; cursor: pointer; transition: background 0.12s; display: flex; align-items: flex-start; gap: 8px; }
+  .temple-item:hover { background: #2e2008; }
+  .temple-item.highlighted { background: #3d2a08; }
+  .t-num { font-size: 0.7rem; color: #8a7050; min-width: 24px; padding-top: 2px; text-align: right; }
+  .t-info { flex: 1; }
+  .t-name { font-size: 0.82rem; color: #f0d898; line-height: 1.3; }
+  .t-place { font-size: 0.72rem; color: #8a7050; margin-top: 2px; }
+  .t-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+
+  /* ── Map ── */
+  #map { flex: 1; }
+
+  /* ── Legend ── */
+  .legend {
+    background: rgba(26, 18, 8, 0.92);
+    border: 1px solid #5a3d10; border-radius: 6px;
+    padding: 10px 14px; line-height: 1.8; font-size: 0.78rem; color: #d0b880;
+  }
+  .legend-title { font-weight: bold; color: #ffd966; margin-bottom: 4px; font-size: 0.82rem; }
+  .legend-row { display: flex; align-items: center; gap: 7px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Popup ── */
+  .leaflet-popup-content-wrapper {
+    background: #2e1f08; border: 1px solid #c8860a;
+    border-radius: 8px; color: #f0e6c8;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  }
+  .leaflet-popup-tip { background: #c8860a; }
+  .leaflet-popup-close-button { color: #c8860a !important; font-size: 18px !important; }
+  .popup-no { font-size: 0.7rem; color: #c8860a; font-weight: bold; letter-spacing: 1px; }
+  .popup-name { font-size: 1rem; font-weight: bold; color: #ffd966; margin: 3px 0 8px; line-height: 1.3; }
+  .popup-row { font-size: 0.8rem; margin: 3px 0; color: #d0b880; }
+  .popup-row b { color: #f0d898; }
+  .popup-divider { border: none; border-top: 1px solid #5a3d10; margin: 7px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>108 Divya Desams</h1>
+    <span>Sacred Vishnu temples sung by the Alvars &nbsp;·&nbsp; Showing 106 earthly shrines</span>
+  </div>
+</header>
+
+<div class="app">
+  <div id="sidebar">
+    <div id="search-box">
+      <input type="text" id="search" placeholder="Search temple or place…" />
+    </div>
+    <div id="state-filter"></div>
+    <div id="temple-list"></div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const STATE_COLORS = {
+  "Tamil Nadu":     "#e8813a",
+  "Kerala":         "#3ab87a",
+  "Uttar Pradesh":  "#5a9de8",
+  "Uttarakhand":    "#a07ee8",
+  "Andhra Pradesh": "#e8c03a",
+  "Nepal":          "#e84a5a",
+  "Gujarat":        "#c03ae8",
+};
+
+const TEMPLES = [{"no":1,"name":"Ranganathaswamy Temple, Srirangam","place":"Srirangam","district":"Trichy","state":"Tamil Nadu","lat":10.8625,"lng":78.689722,"perumal":"Ranganathaswamy Perumal","thayar":"Ranganayaki Thayar"},{"no":2,"name":"Thirukoḻi","place":"Uraiyur","district":"Trichy","state":"Tamil Nadu","lat":10.82,"lng":78.67,"perumal":"Aḻagiya Manavala Perumal","thayar":"Kamalavalli Nachiyar"},{"no":3,"name":"Thirukkarambanoor","place":"Uthamarkoil","district":"Tiruchirappalli","state":"Tamil Nadu","lat":10.49,"lng":78.81,"perumal":"Purushottama Perumal","thayar":"Purushottama Nayaki"},{"no":4,"name":"Pundarikakshan Perumal Koil","place":"Thiruvellarai","district":"Trichy","state":"Tamil Nadu","lat":10.96,"lng":78.67,"perumal":"Pundarikaksha Perumal","thayar":"Pankaja Nayaki"},{"no":5,"name":"Vadivaḻagiya Nambi Perumal Koil","place":"Anbil","district":"Trichy","state":"Tamil Nadu","lat":10.867735,"lng":78.882171,"perumal":"Sundararaja Perumal","thayar":"Saundaryavalli"},{"no":6,"name":"Appakkudathaan Perumal Koil","place":"Koviladi","district":"Tanjore","state":"Tamil Nadu","lat":10.839307,"lng":78.889073,"perumal":"Appakudatthan Perumal","thayar":"Indravalli"},{"no":7,"name":"Hara Saabha Vimocchana Perumal Temple","place":"Kandiyur","district":"Thanjavur","state":"Tamil Nadu","lat":10.860255,"lng":79.108891,"perumal":"Hara Saabha Vimochana Perumal","thayar":"Kamalavalli"},{"no":8,"name":"Thirukoodalur","place":"Aduthurai","district":"Thanjavur","state":"Tamil Nadu","lat":10.925152,"lng":79.203532,"perumal":"Jagathrakshaga Perumal","thayar":""},{"no":9,"name":"Thirukavithalam","place":"Kabisthalam","district":"Thanjavur","state":"Tamil Nadu","lat":10.94689,"lng":79.256512,"perumal":"Gajendra Varadha Perumal","thayar":"Ramamanivalli"},{"no":10,"name":"Thiruppullamboothangudi","place":"Pullabhoothangudi","district":"Thanjavur","state":"Tamil Nadu","lat":10.971596,"lng":79.303415,"perumal":"Rama Perumal","thayar":"Hemambujavalli"},{"no":11,"name":"Thiruaadhanur","place":"Adanur","district":"Thanjavur","state":"Tamil Nadu","lat":10.97647,"lng":79.313454,"perumal":"Andalukkum Aiyyan Perumal","thayar":"Ranganayaki Thayar"},{"no":12,"name":"Thirukudanthai","place":"Kumbakonam","district":"Thanjavur","state":"Tamil Nadu","lat":10.959649,"lng":79.374999,"perumal":"Aravamuda Perumal","thayar":"Komalavalli"},{"no":13,"name":"Thiruvinnagar","place":"Tirunageswaram","district":"Thanjavur","state":"Tamil Nadu","lat":10.96157,"lng":79.43208,"perumal":"Uppiliappan Perumal","thayar":"Bhumidevi"},{"no":14,"name":"Thirunaraiyur","place":"Nachiyar Kovil","district":"Thiruvarur","state":"Tamil Nadu","lat":10.915844,"lng":79.445554,"perumal":"Srinivasa Perumal","thayar":"Vanchulavalli"},{"no":15,"name":"Thirucherai","place":"Tirucherai","district":"Thanjavur","state":"Tamil Nadu","lat":10.879135,"lng":79.454402,"perumal":"Saranatha Perumal","thayar":"Saranayaki"},{"no":16,"name":"Thirukannamangai","place":"Thirukannamangai","district":"Thiruvarur","state":"Tamil Nadu","lat":10.799552,"lng":79.586645,"perumal":"Bhaktavatsala Perumal","thayar":"Abishekavalli"},{"no":17,"name":"Thirukannapuram","place":"Tirukannapuram","district":"Nagapattinam","state":"Tamil Nadu","lat":10.868499,"lng":79.704266,"perumal":"Sowriraja Perumal","thayar":"Kannapura Nayaki"},{"no":18,"name":"Thirukannangudi","place":"Tirukannankudi","district":"Nagapattinam","state":"Tamil Nadu","lat":10.757222,"lng":79.76329,"perumal":"Lokanatha Perumal","thayar":"Loganayaki"},{"no":19,"name":"Thirunagai","place":"Nagapattinam","district":"Nagapattinam","state":"Tamil Nadu","lat":10.75983,"lng":79.843706,"perumal":"Sundararaja Perumal","thayar":"Saundaryavalli"},{"no":20,"name":"Thiruthanjai Mamanikoil","place":"Thanjavur district","district":"Thanjavur","state":"Tamil Nadu","lat":10.816022,"lng":79.139155,"perumal":"Neelamegha Perumal","thayar":"Raktapankajavalli"},{"no":21,"name":"Thirunandhipura Vinnagaram","place":"Nathan Kovil","district":"Thiruvarur","state":"Tamil Nadu","lat":10.922075,"lng":79.372192,"perumal":"Jagannatha Perumal","thayar":"Shenbagavalli"},{"no":22,"name":"Thiruvelliyangudi","place":"Thiruvelliyangudi","district":"Thanjavur","state":"Tamil Nadu","lat":11.056687,"lng":79.443095,"perumal":"Kolavilli Rama Perumal","thayar":"Maragadhavalli"},{"no":23,"name":"Thiruvazhundur","place":"Theranzhdur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.046532,"lng":79.579468,"perumal":"Devadiraja Perumal","thayar":"Senkamalavalli"},{"no":24,"name":"Thiruchirupuliyur","place":"Thirusirupuliyur","district":"Thiruvarur","state":"Tamil Nadu","lat":10.991202,"lng":79.66944,"perumal":"Krupasamudra Perumal","thayar":"Dayanayaki"},{"no":25,"name":"Thiruthalaichanga Nanmadiyam","place":"Thalachangadu","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.129789,"lng":79.785252,"perumal":"Chandrasaabahara Perumal","thayar":"Thalaichanga Nachiyar"},{"no":26,"name":"Thiruindalur","place":"Indalur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.109733,"lng":79.646232,"perumal":"Parimala Ranganatha Perumal","thayar":"Parimala Ranganayaki"},{"no":27,"name":"Thirukkavalambadi","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.1769,"lng":79.7824,"perumal":"Gopala Krishna Perumal","thayar":"Senkamala Nachiyar"},{"no":28,"name":"Thirukazhicheerama Vinnagaram","place":"Sirkazhi","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.240964,"lng":79.731689,"perumal":"Trivikrama Perumal","thayar":"Lokanayaki"},{"no":29,"name":"Thiruarimeya Vinnagaram","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.17768,"lng":79.78152,"perumal":"Kudamudakoothan Perumal","thayar":"Amrudhagadavalli"},{"no":30,"name":"Thiruvanpurushothamam","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.178783,"lng":79.77669,"perumal":"Purushottama Perumal","thayar":"Purushotthama Nayaki"},{"no":31,"name":"Thirusemponsaikoil","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.178446,"lng":79.779651,"perumal":"Hemaranganatha Perumal","thayar":"Sweda Pushpavalli"},{"no":32,"name":"Thirumanimadakoil","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.173971,"lng":79.776872,"perumal":"Sashvatha Deepaya Narayana Perumal","thayar":"Pundareegavalli"},{"no":33,"name":"Thiruvaikunta Vinnagaram","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.179804,"lng":79.778267,"perumal":"Vaikundanatha Perumal","thayar":"Vaikundavalli"},{"no":34,"name":"Thiruvali","place":"Thiruvali, Thirunagari","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.226354,"lng":79.800335,"perumal":"Kedarapathivaraya Perumal","thayar":"Amrudhagadavalli"},{"no":35,"name":"Thiruthevanarthogai","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.196842,"lng":79.775504,"perumal":"Devanayaka Perumal","thayar":""},{"no":36,"name":"Thiruthetriambalam","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.17302,"lng":79.7951,"perumal":"","thayar":"Rakthapankajavalli"},{"no":37,"name":"Thirumanikoodam","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.177415,"lng":79.777838,"perumal":"Varadharaja Perumal","thayar":"Boonayagi"},{"no":38,"name":"Thiruvellakulam","place":"Thirunangur","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.190106,"lng":79.764929,"perumal":"Srinivasa Perumal","thayar":""},{"no":39,"name":"Thiruparthanpalli","place":"Parthanpalli","district":"Mayiladuthurai","state":"Tamil Nadu","lat":11.169952,"lng":79.797515,"perumal":"Taamaraiyaal Kelvan Perumal","thayar":"Tamarai Nayagi"},{"no":40,"name":"Thiruchitrakoodam","place":"Chidambaram","district":"Cuddalore","state":"Tamil Nadu","lat":11.399207,"lng":79.693364,"perumal":"Govindaraja Perumal","thayar":"Pundareekavalli"},{"no":41,"name":"Thiruvanthipuram","place":"Thiruvanthipuram","district":"Cuddalore","state":"Tamil Nadu","lat":11.745099,"lng":79.709351,"perumal":"Devanatha Perumal","thayar":"Hemambujavalli"},{"no":42,"name":"Thirukkoyilur","place":"Thirukoyilur","district":"Kallakurichi","state":"Tamil Nadu","lat":11.967006,"lng":79.202479,"perumal":"Trivikrama Perumal","thayar":"Pushpavalli"},{"no":43,"name":"Thirukkachi - Atthigiri","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.819137,"lng":79.724646,"perumal":"Varadharaja Perumal","thayar":"Perundevi Thayar"},{"no":44,"name":"Ashtabujagaram","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.822736,"lng":79.710806,"perumal":"Ashtabhuja Perumal","thayar":""},{"no":45,"name":"Thiruthanka","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.824382,"lng":79.705543,"perumal":"Deepaprakasa Perumal","thayar":"Maragadhavalli"},{"no":46,"name":"Thiruvelukkai","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.822197,"lng":79.70645,"perumal":"Yoga Narasimha Perumal","thayar":"Amritavalli"},{"no":47,"name":"Thiruneeragam","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.839122,"lng":79.705185,"perumal":"Jagadeesha Perumal","thayar":"Nilamangai Valli"},{"no":48,"name":"Thiruppadagam","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.842726,"lng":79.696941,"perumal":"Pandavadootha Perumal","thayar":""},{"no":49,"name":"Nilathingal Thundam","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.847463,"lng":79.699313,"perumal":"Chandrasooda Perumal","thayar":"Chandrasoodavalli"},{"no":50,"name":"Thiruooragam","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.839122,"lng":79.705185,"perumal":"Trivikrama Perumal","thayar":"Amudavalli"},{"no":51,"name":"Thiruvekka","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.82407,"lng":79.712462,"perumal":"Yathottakari Perumal","thayar":"Komalavalli"},{"no":52,"name":"Thirukkaragam","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.839122,"lng":79.705185,"perumal":"Karunagara Perumal","thayar":""},{"no":53,"name":"Thirukkarvaanam","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.839122,"lng":79.705185,"perumal":"Neelamega Perumal","thayar":"Kamalavalli"},{"no":54,"name":"Thirukkalvanur","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.840653,"lng":79.70325,"perumal":"Adi Varaha Perumal","thayar":"Anjilai Valli"},{"no":55,"name":"Thiruppavalavannam","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.843658,"lng":79.707604,"perumal":"Pavalavarna Perumal","thayar":"Pavalavalli"},{"no":56,"name":"Thiru Parameswara Vinnagaram","place":"Kanchipuram","district":"Kanchipuram","state":"Tamil Nadu","lat":12.837151,"lng":79.709482,"perumal":"Vaikundanatha Perumal","thayar":"Vaikundavalli"},{"no":57,"name":"Thiruputkuzhi","place":"Thiruputkuzhi","district":"Kanchipuram","state":"Tamil Nadu","lat":12.872642,"lng":79.618683,"perumal":"Vijayaraghava Perumal","thayar":"Maragadhavalli"},{"no":58,"name":"Thirunindravur","place":"Thirunindravur","district":"Tiruvallur","state":"Tamil Nadu","lat":13.112501,"lng":80.026096,"perumal":"Bhaktavatsala Perumal","thayar":"Sudhavalli"},{"no":59,"name":"Thiruvallur","place":"Thiruvallur","district":"Tiruvallur","state":"Tamil Nadu","lat":13.143204,"lng":79.907439,"perumal":"Vaidya Veeraraghava Perumal","thayar":"Kanakavalli"},{"no":60,"name":"Thiruvallikeni","place":"Chennai","district":"Chennai","state":"Tamil Nadu","lat":13.05392,"lng":80.276942,"perumal":"Venkatakrishna Perumal","thayar":""},{"no":61,"name":"Thiruneermalai","place":"Chengalpattu","district":"Chengalpattu","state":"Tamil Nadu","lat":12.963808,"lng":80.114953,"perumal":"Neervanna Perumal","thayar":""},{"no":62,"name":"Thiruvidanthai","place":"Thiruvidanthai","district":"Chengalpattu","state":"Tamil Nadu","lat":12.763217,"lng":80.242538,"perumal":"Nityakalyana Perumal","thayar":"Komalavalli"},{"no":63,"name":"Thirukkadanmallai","place":"Mahabalipuram","district":"Chengalpattu","state":"Tamil Nadu","lat":12.617464,"lng":80.193303,"perumal":"Sthalasayana Perumal","thayar":"Boosthalamangadevi"},{"no":64,"name":"Thirukkadigai","place":"Sholinghur","district":"Vellore","state":"Tamil Nadu","lat":13.093698,"lng":79.424626,"perumal":"Yoga Narasimha Perumal","thayar":"Amritavalli"},{"no":65,"name":"Thirunavai","place":"Tirunavaya","district":"Mallapuram","state":"Kerala","lat":10.360704,"lng":76.83654,"perumal":"Navamukunda Perumal","thayar":""},{"no":66,"name":"Thiruvithuvakodu","place":"Thiruvithuvakoodu","district":"Palakkad","state":"Kerala","lat":10.3607,"lng":76.83654,"perumal":"Abhayapradhaya Perumal","thayar":"Vithuvakoduvalli"},{"no":67,"name":"Thrikkakara Vamanamoorthy Kshethram","place":"Thrikkakara","district":"Ernakulam","state":"Kerala","lat":10.3607,"lng":76.83654,"perumal":"Katkaraswami Perumal","thayar":"Vathsalyavalli"},{"no":68,"name":"Thirumoozhikkalam","place":"Thirumoozhikulam","district":"Ernakulam","state":"Kerala","lat":10.3607,"lng":76.8365,"perumal":"Sookthinatha Perumal","thayar":""},{"no":69,"name":"Sree Vallabha Temple","place":"Thiruvalla","district":"Pathanamthitta","state":"Kerala","lat":9.42723,"lng":76.81732,"perumal":"Vallabhaswami Perumal","thayar":"Vathsalyavalli"},{"no":70,"name":"Thrikodithanam Mahavishnu Temple","place":"Changanassery","district":"Kottayam","state":"Kerala","lat":9.42723,"lng":76.81732,"perumal":"Amruthanarayana Perumal","thayar":"Karpagavalli"},{"no":71,"name":"Thrichittatt Mahavishnu Temple","place":"Chengannur","district":"Alappuzha","state":"Kerala","lat":9.42723,"lng":76.81732,"perumal":"Devathideva Perumal","thayar":"Rakthapankajavalli"},{"no":72,"name":"Thiruppuliyur","place":"Thripuliyur","district":"Alappuzha","state":"Kerala","lat":9.42723,"lng":76.81732,"perumal":"Maayapiran Perumal","thayar":"Porkodi Nachiyar"},{"no":73,"name":"Aranmula Parthasarathy Temple","place":"Aranmula","district":"Pathanamthitta","state":"Kerala","lat":9.35542,"lng":76.76033,"perumal":"Kuralappan Perumal","thayar":"Padmasani Nachiyar"},{"no":74,"name":"Thiruvanvandoor","place":"Thiruvanvandoor","district":"Alappuzha","state":"Kerala","lat":9.35542,"lng":76.76031,"perumal":"Paambanaiyappan Perumal","thayar":"Kamalavalli Nachiyar"},{"no":75,"name":"Thiruvananthapuram","place":"Thiruvananthapuram","district":"Thiruvananthapuram","state":"Kerala","lat":8.53402,"lng":76.92787,"perumal":"Ananthapadmanabhaswami Perumal","thayar":"Harilakshmi"},{"no":76,"name":"Thiruvattaru","place":"Thiruvattar","district":"Kanyakumari","state":"Tamil Nadu","lat":8.36897,"lng":77.24167,"perumal":"Adhikesava Perumal","thayar":"Maragadhavalli"},{"no":77,"name":"Thiruvanparisaram","place":"Thiruppathisaram","district":"Kanyakumari","state":"Tamil Nadu","lat":8.254153,"lng":77.47032,"perumal":"Thiruvaḻmarbhan Perumal","thayar":"Kamalavalli"},{"no":78,"name":"Thirukkurungudi","place":"Thirukkurungudi","district":"Tirunelveli","state":"Tamil Nadu","lat":8.436906,"lng":77.5259,"perumal":"Vamanakshetrapoornaya Perumal","thayar":"Vamanakshetravalli"},{"no":79,"name":"Thirucheeravaramangai","place":"Nanguneri","district":"Tirunelveli","state":"Tamil Nadu","lat":8.436905,"lng":77.5259,"perumal":"Thothadhrinatha Perumal","thayar":"Chireevaramangaivalli"},{"no":80,"name":"Thiruvaigundam","place":"Srivaikuntam","district":"Thoothukudi","state":"Tamil Nadu","lat":8.609726,"lng":77.976,"perumal":"Vaikuntanatha Perumal","thayar":"Boonayagi"},{"no":81,"name":"Thiruvaragunamangai","place":"Natham","district":"Thoothukudi","state":"Tamil Nadu","lat":8.60972,"lng":77.976037,"perumal":"Vijayasana Perumal","thayar":"Varagunavalli"},{"no":82,"name":"Thiruppuliangudi","place":"Thirupulingudi","district":"Thoothukudi","state":"Tamil Nadu","lat":8.60972,"lng":77.976037,"perumal":"Kaaichina Vendhan Perumal","thayar":"Malarmagal Nachiyar"},{"no":83,"name":"Thirutholaivillimangalam","place":"Tholavillimangalam","district":"Thoothukudi","state":"Tamil Nadu","lat":8.60972,"lng":77.97603,"perumal":"Aravindalochana Perumal","thayar":"Karunthadanganni Nachiyar"},{"no":84,"name":"Thirukkulandai","place":"Perungulam","district":"Thoothukudi","state":"Tamil Nadu","lat":8.606968,"lng":77.950545,"perumal":"Srinivasa Perumal","thayar":"Alamelumangai Thayar"},{"no":85,"name":"Thirukkolur","place":"Thirukolur","district":"Thoothukudi","state":"Tamil Nadu","lat":8.6065018,"lng":77.97389,"perumal":"Vaithamanithi Perumal","thayar":"Amudhavalli"},{"no":86,"name":"Thirupperai","place":"Thenthiruperai","district":"Thoothukudi","state":"Tamil Nadu","lat":8.6065,"lng":77.97389,"perumal":"Magara Nedungkuḻai Kathar Perumal","thayar":"Kuḻaikkadhu Valli"},{"no":87,"name":"Thirukkurugur","place":"Alwarthirunagari","district":"Thoothukudi","state":"Tamil Nadu","lat":8.60696,"lng":77.95054,"perumal":"Aadhinatha Perumal","thayar":"Aadhinadha Valli"},{"no":88,"name":"Srivillipputhur","place":"Srivilliputhur","district":"Virudhunagar","state":"Tamil Nadu","lat":9.50763,"lng":77.62435,"perumal":"Vatapatrasayee Perumal","thayar":"Kodhadevi"},{"no":89,"name":"Thiruthangal","place":"Thiruthankal","district":"Virudhunagar","state":"Tamil Nadu","lat":9.010702,"lng":77.8853,"perumal":"Narayana Perumal","thayar":"Sengamala Thayar"},{"no":90,"name":"Thirukkoodal","place":"Madurai","district":"Madurai","state":"Tamil Nadu","lat":9.9197,"lng":78.1198,"perumal":"Koodal Aḻagar Perumal","thayar":"Madhuravalli Thayar"},{"no":91,"name":"Thirumaliruncholai","place":"Alagar Koyil","district":"Madurai","state":"Tamil Nadu","lat":10.0461,"lng":78.1765,"perumal":"Kallaḻagar Perumal","thayar":"Sundaravalli"},{"no":92,"name":"Thirumogur","place":"Thirumohur","district":"Madurai","state":"Tamil Nadu","lat":9.8701,"lng":77.9873,"perumal":"Kalamega Perumal","thayar":"Mohavalli"},{"no":93,"name":"Thirukkoshtiyur","place":"Thirukoshtiyur","district":"Sivaganga","state":"Tamil Nadu","lat":9.9405,"lng":78.4253,"perumal":"Uraga Mellanayaan Perumal","thayar":"Mahalakshmi"},{"no":94,"name":"Thiruppullani","place":"Thirupullani","district":"Ramanathapuram","state":"Tamil Nadu","lat":9.2775,"lng":79.0588,"perumal":"Kalyana Jagannatha Perumal","thayar":"Kalyanavalli"},{"no":95,"name":"Thirumeyyam","place":"Thirumayam","district":"Pudukottai","state":"Tamil Nadu","lat":10.2341,"lng":78.7523,"perumal":"Sathyagirinatha Perumal","thayar":"Uyya Vandha Nachiyar"},{"no":96,"name":"Thiruvayodhi (Ayodhya)","place":"Ram Mandir, Ayodhya","district":"Ayodhya","state":"Uttar Pradesh","lat":26.7954,"lng":82.1942,"perumal":"Ramachandra Perumal","thayar":"Seethadevi"},{"no":97,"name":"Naimisaranyam","place":"Misrikh Neemsar","district":"Sitapur","state":"Uttar Pradesh","lat":27.43625,"lng":80.57052,"perumal":"Devaraja Perumal","thayar":"Harilakshmi"},{"no":98,"name":"Thirupruthi (Jyothirmath)","place":"Jyotirmath","district":"Chamoli","state":"Uttarakhand","lat":29.92981,"lng":79.42245,"perumal":"Paramapurusha Perumal","thayar":"Parimalavalli"},{"no":99,"name":"Thirukkandamenum Kadinagar","place":"Devaprayag","district":"Tehri Garhwal","state":"Uttarakhand","lat":30.145556,"lng":78.564444,"perumal":"Purushottama Perumal","thayar":"Pundareegavalli"},{"no":100,"name":"Thiruvadari (Badrinath)","place":"Badrinath","district":"Chamoli","state":"Uttarakhand","lat":30.744695,"lng":79.491175,"perumal":"Badrinarayana Perumal","thayar":"Aravindhavalli"},{"no":101,"name":"Thiru Saligram (Muktinath)","place":"Muktinath Valley","district":"Mustang","state":"Nepal","lat":28.816711,"lng":83.87128,"perumal":"Srimurti Perumal","thayar":"Sridevi"},{"no":102,"name":"Thiruvadamadurai (Krishna Janmabhoomi)","place":"Mathura","district":"Mathura","state":"Uttar Pradesh","lat":27.504756,"lng":77.669646,"perumal":"Govardhanagiridhari Perumal","thayar":""},{"no":103,"name":"Thiruvaipadi (Gokula)","place":"Gokul","district":"Mathura","state":"Uttar Pradesh","lat":27.4701,"lng":77.7009,"perumal":"Navamohanakrishna Perumal","thayar":""},{"no":104,"name":"Thirudwarakai (Dwarakadheesh)","place":"Dwarka","district":"Devbhoomi Dwarka","state":"Gujarat","lat":22.23866,"lng":68.96738,"perumal":"Dwarakadheesha Perumal","thayar":""},{"no":105,"name":"Singavel Kundram (Ahobilam)","place":"Ahobilam","district":"Kurnool","state":"Andhra Pradesh","lat":15.34099,"lng":78.5526,"perumal":"Prahlada Varada Narasimha swamy","thayar":"Lakshmi"},{"no":106,"name":"Thiruvenkadam","place":"Tirupati","district":"Chittoor","state":"Andhra Pradesh","lat":13.68329,"lng":79.34683,"perumal":"Srinivasa Perumal","thayar":""}];
+
+// ── Map ────────────────────────────────────────────────────────────────────
+const map = L.map('map', { center: [15, 79], zoom: 6, zoomControl: true });
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+// ── Reset button ──────────────────────────────────────────────────────────────
+const resetBtn = L.control({ position: 'topleft' });
+resetBtn.onAdd = () => {
+  const btn = L.DomUtil.create('button');
+  btn.title = 'Reset view';
+  btn.innerHTML = '&#8962;';
+  btn.style.cssText = 'width:34px;height:34px;background:#fff;border:2px solid rgba(0,0,0,0.2);border-radius:4px;color:#333;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:6px;';
+  L.DomEvent.disableClickPropagation(btn);
+  btn.addEventListener('click', () => map.setView([15, 79], 6, { animate: true }));
+  return btn;
+};
+resetBtn.addTo(map);
+
+// ── Legend ────────────────────────────────────────────────────────────────────
+const legend = L.control({ position: 'bottomright' });
+legend.onAdd = () => {
+  const div = L.DomUtil.create('div', 'legend');
+  div.innerHTML = '<div class="legend-title">Regions</div>';
+  Object.entries(STATE_COLORS).forEach(([state, color]) => {
+    const count = TEMPLES.filter(t => t.state === state).length;
+    div.innerHTML += `<div class="legend-row"><span class="legend-dot" style="background:${color}"></span><span>${state} (${count})</span></div>`;
+  });
+  return div;
+};
+legend.addTo(map);
+
+// ── Markers ───────────────────────────────────────────────────────────────────
+function popupHTML(t) {
+  const loc = [t.place, t.district, t.state].filter(Boolean).join(', ');
+  return `<div class="popup-no">DIVYA DESAM #${t.no}</div>
+    <div class="popup-name">${t.name}</div><hr class="popup-divider">
+    <div class="popup-row"><b>Place:</b> ${loc}</div>
+    ${t.perumal ? `<div class="popup-row"><b>Perumal:</b> ${t.perumal}</div>` : ''}
+    ${t.thayar  ? `<div class="popup-row"><b>Thayar:</b> ${t.thayar}</div>`  : ''}`;
+}
+
+const markers = {};
+TEMPLES.forEach(t => {
+  const color = STATE_COLORS[t.state] || '#aaa';
+  const m = L.circleMarker([t.lat, t.lng], {
+    radius: 7, fillColor: color, color: '#1a1208', weight: 1.5, fillOpacity: 0.9,
+  }).addTo(map);
+  m.bindPopup(popupHTML(t), { maxWidth: 280 });
+  m.on('click', () => highlightItem(t.no));
+  markers[t.no] = m;
+});
+
+// ── Sidebar & Filtering ──────────────────────────────────────────────────────
+const states = [...new Set(TEMPLES.map(t => t.state))];
+let activeFilters = new Set(states);
+const filterDiv = document.getElementById('state-filter');
+
+const allBtn = document.createElement('button');
+allBtn.textContent = 'All';
+allBtn.className = 'filter-btn active';
+allBtn.style.cssText = 'background:#5a3d10;color:#ffd966;border-color:#c8860a;';
+filterDiv.appendChild(allBtn);
+
+const stateBtns = {};
+states.forEach(state => {
+  const btn = document.createElement('button');
+  btn.textContent = state;
+  btn.className = 'filter-btn active';
+  const color = STATE_COLORS[state] || '#aaa';
+  btn.style.cssText = `background:${color}22;color:${color};border-color:${color};`;
+  filterDiv.appendChild(btn);
+  stateBtns[state] = btn;
+  btn.addEventListener('click', () => {
+    activeFilters.has(state) ? activeFilters.delete(state) : activeFilters.add(state);
+    btn.classList.toggle('active');
+    applyFilters();
+  });
+});
+
+allBtn.addEventListener('click', () => {
+  if (activeFilters.size === states.length) {
+    activeFilters.clear();
+    Object.values(stateBtns).forEach(b => b.classList.remove('active'));
+    allBtn.textContent = 'None';
+  } else {
+    activeFilters = new Set(states);
+    Object.values(stateBtns).forEach(b => b.classList.add('active'));
+    allBtn.textContent = 'All';
+  }
+  applyFilters();
+});
+
+const list = document.getElementById('temple-list');
+TEMPLES.forEach(t => {
+  const color = STATE_COLORS[t.state] || '#aaa';
+  const item = document.createElement('div');
+  item.className = 'temple-item'; item.id = `item-${t.no}`;
+  item.innerHTML = `<div class="t-num">${t.no}</div>
+    <div class="t-dot" style="background:${color}"></div>
+    <div class="t-info"><div class="t-name">${t.name}</div>
+    <div class="t-place">${[t.place, t.district].filter(Boolean).join(', ')}</div></div>`;
+  item.addEventListener('click', () => {
+    map.setView([t.lat, t.lng], 12, { animate: true });
+    markers[t.no].openPopup();
+    highlightItem(t.no);
+  });
+  list.appendChild(item);
+});
+
+function highlightItem(no) {
+  document.querySelectorAll('.temple-item').forEach(el => el.classList.remove('highlighted'));
+  const el = document.getElementById(`item-${no}`);
+  if (el) { el.classList.add('highlighted'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+}
+
+function applyFilters() {
+  const q = document.getElementById('search').value.toLowerCase();
+  TEMPLES.forEach(t => {
+    const show = activeFilters.has(t.state) &&
+      (!q || t.name.toLowerCase().includes(q) || t.place.toLowerCase().includes(q) || t.state.toLowerCase().includes(q));
+    show ? markers[t.no].addTo(map) : markers[t.no].remove();
+    const el = document.getElementById(`item-${t.no}`);
+    if (el) el.style.display = show ? '' : 'none';
+  });
+}
+document.getElementById('search').addEventListener('input', applyFilters);
+</script>
+</body>
+</html>
