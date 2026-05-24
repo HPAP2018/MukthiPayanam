@@ -2,7 +2,7 @@
 
 An interactive web map of the **108 Divya Desams** — the sacred Vishnu temples revered by the Alvar saints in the Naalayira Divya Prabandham.
 
-**🌐 Live map:** https://YOUR-USERNAME.github.io/MukthiPayanam/
+**🌐 Live map:** https://HPAP2018.github.io/MukthiPayanam/
 
 ## What is this?
 
